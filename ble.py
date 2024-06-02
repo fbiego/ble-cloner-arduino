@@ -319,7 +319,6 @@ async def main():
     if not os.path.exists(folder_name):
         os.mkdir(folder_name)
 
-
     file_path = os.path.join(folder_name, file_name)
 
     timeout_duration = 120.0
@@ -332,7 +331,6 @@ async def main():
             print("Failed to connect")
             return
         
-
         print(f"Connected to {client.address}")
 
         services = client.services
@@ -357,13 +355,14 @@ async def main():
     
     for adService in selected_ad_data.service_uuids:
         wAdvertising += f"\tpAdvertising->addServiceUUID(\"{convert_uuid(adService)}\");\n"
-    for key, value in selected_ad_data.manufacturer_data.items():
-        # print(f"  Manufacturer Data: {key}: {value}")
-        wAdvertising += f"\tuint8_t mData[] = {{{int_hex(key)}, {array_hex(value)}}};\n"
-        wAdvertising += f"\tpAdvertising->setManufacturerData(std::string((char *)&mData[0], {2 + len(value)}));\n"
-    for key, value in selected_ad_data.service_data.items():
-        wAdvertising += f"\tuint8_t sData[] = {{{array_hex(value)}}};\n"
-        wAdvertising += f"\tpAdvertising->setServiceData(NimBLEUUID(\"{convert_uuid(key)}\"), std::string((char *)&sData[0], {len(value)}));\n"
+    
+    for i, (key, value) in enumerate(selected_ad_data.manufacturer_data.items()):
+        wAdvertising += f"\tuint8_t mData{i}[] = {{{int_hex(key)}, {array_hex(value)}}};\n"
+        wAdvertising += f"\tpAdvertising->setManufacturerData(std::string((char *)&mData{i}[0], {2 + len(value)}));\n"
+    
+    for i, (key, value) in enumerate(selected_ad_data.service_data.items()):
+        wAdvertising += f"\tuint8_t sData{i}[] = {{{array_hex(value)}}};\n"
+        wAdvertising += f"\tpAdvertising->setServiceData(NimBLEUUID(\"{convert_uuid(key)}\"), std::string((char *)&sData{i}[0], {len(value)}));\n"
 
     with open(file_path, "w") as file:
         file.write(sketch.replace('[NAME]', selected_device.name).replace('[SERVICES]', wServices).replace('[ADVERTISING]', wAdvertising))
