@@ -41,33 +41,31 @@ sketch = '''
  * Generated using ble-cloner-arduino
  * developed by fbiego
  * https://github.com/fbiego/ble-cloner-arduino
- * 
+ * NIMBLE v2.2.3
  */
 
 #include <NimBLEDevice.h>
 
-class ServerCallbacks : public BLEServerCallbacks
+class ServerCallbacks : public NimBLEServerCallbacks
 {
-	void onConnect(BLEServer *pServer)
+	void onConnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo) override
 	{
 		Serial.println("Client connected");
-	};
+	}
 		
-	void onDisconnect(BLEServer *pServer)
-	{
-		Serial.println("Client disconnected - start advertising");
-		BLEDevice::startAdvertising();
-	};
-		
-	void onMTUChange(uint16_t MTU, ble_gap_conn_desc *desc)
-	{
-		Serial.printf("MTU updated: %u for connection ID: %u\\n", MTU, desc->conn_handle);
-	};
+	void onDisconnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo, int reason) override {
+        Serial.printf("Client disconnected - start advertising\\n");
+        NimBLEDevice::startAdvertising();
+    }
+
+    void onMTUChange(uint16_t MTU, NimBLEConnInfo& connInfo) override {
+        Serial.printf("MTU updated: %u for connection ID: %u\\n", MTU, connInfo.getConnHandle());
+    }
 };
 
-class CharacteristicCallbacks : public BLECharacteristicCallbacks
+class CharacteristicCallbacks : public NimBLECharacteristicCallbacks
 {
-	void onRead(BLECharacteristic *pCharacteristic)
+	void onRead(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) override
 	{
 		std::string pData = pCharacteristic->getValue();
 		int len = pData.length();
@@ -80,9 +78,9 @@ class CharacteristicCallbacks : public BLECharacteristicCallbacks
 			Serial.printf("%02X ", pData[i]);
 		}
 		Serial.println();
-	};
+	}
 
-	void onWrite(BLECharacteristic *pCharacteristic)
+	void onWrite(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) override
 	{
 		std::string pData = pCharacteristic->getValue();
 		int len = pData.length();
@@ -95,7 +93,7 @@ class CharacteristicCallbacks : public BLECharacteristicCallbacks
 			Serial.printf("%02X ", pData[i]);
 		}
 		Serial.println();
-	};
+	}
 
 	void onNotify(BLECharacteristic *pCharacteristic)
 	{
@@ -110,50 +108,35 @@ class CharacteristicCallbacks : public BLECharacteristicCallbacks
 			Serial.printf("%02X ", pData[i]);
 		}
 		Serial.println();
-	};
+	}
 
-	void onStatus(BLECharacteristic *pCharacteristic, Status status, int code)
-	{
-		String str = ("Notification/Indication status code: ");
-		str += status;
-		str += ", return code: ";
-		str += code;
-		str += ", ";
-		str += BLEUtils::returnCodeToString(code);
-		Serial.println(str);
-	};
+	void onStatus(NimBLECharacteristic* pCharacteristic, int code) override {
+        Serial.printf("Notification/Indication return code: %d, %s\\n", code, NimBLEUtils::returnCodeToString(code));
+    }
 
-	void onSubscribe(BLECharacteristic *pCharacteristic, ble_gap_conn_desc *desc, uint16_t subValue)
-	{
-		String str = "Client ID: ";
-		str += desc->conn_handle;
-		str += " Address: ";
-		str += std::string(BLEAddress(desc->peer_ota_addr)).c_str();
-		if (subValue == 0)
-		{
-			str += " Unsubscribed to ";
-		}
-		else if (subValue == 1)
-		{
-			str += " Subscribed to notfications for ";
-		}
-		else if (subValue == 2)
-		{
-			str += " Subscribed to indications for ";
-		}
-		else if (subValue == 3)
-		{
-			str += " Subscribed to notifications and indications for ";
-		}
-		str += std::string(pCharacteristic->getUUID()).c_str();
+	void onSubscribe(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo, uint16_t subValue) override {
+        std::string str  = "Client ID: ";
+        str             += connInfo.getConnHandle();
+        str             += " Address: ";
+        str             += connInfo.getAddress().toString();
+        if (subValue == 0) {
+            str += " Unsubscribed to ";
+        } else if (subValue == 1) {
+            str += " Subscribed to notifications for ";
+        } else if (subValue == 2) {
+            str += " Subscribed to indications for ";
+        } else if (subValue == 3) {
+            str += " Subscribed to notifications and indications for ";
+        }
+        str += std::string(pCharacteristic->getUUID());
 
-		Serial.println(str);
-	};
+        Serial.printf("%s\\n", str.c_str());
+    }
 };
 
-class DescriptorCallbacks : public BLEDescriptorCallbacks
+class DescriptorCallbacks : public NimBLEDescriptorCallbacks
 {
-	void onWrite(BLEDescriptor *pDescriptor)
+	void onWrite(NimBLEDescriptor* pDescriptor, NimBLEConnInfo& connInfo) override
 	{
 		Serial.print("Descriptor written:");
 		std::string pData = pDescriptor->getValue();
@@ -162,13 +145,13 @@ class DescriptorCallbacks : public BLEDescriptorCallbacks
 		  Serial.printf("%02X ", pData[i]);
 		}
 		Serial.println();
-	};
+	}
 
-	void onRead(BLEDescriptor *pDescriptor)
+	void onRead(NimBLEDescriptor* pDescriptor, NimBLEConnInfo& connInfo) override
 	{
 		Serial.print(pDescriptor->getUUID().toString().c_str());
 		Serial.println("Descriptor read");
-	};
+	}
 };
 
 static DescriptorCallbacks dscCallbacks;
@@ -176,7 +159,7 @@ static CharacteristicCallbacks chrCallbacks;
 
 void initBLE()
 {
-	BLEDevice::init("[NAME]");
+	NimBLEDevice::init("[NAME]");
 	BLEDevice::setMTU(517);
 	BLEServer *pServer = BLEDevice::createServer();
 	pServer->setCallbacks(new ServerCallbacks());
@@ -185,7 +168,9 @@ void initBLE()
 
 	BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
 [ADVERTISING]
-	pAdvertising->setScanResponse(true);
+	pAdvertising->enableScanResponse(true);
+	pAdvertising->setPreferredParams(0x06, 0x12); // functions that help with iPhone connections issue
+	pAdvertising->setName("[NAME]");
 	pAdvertising->start();
 }
 
